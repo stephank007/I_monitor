@@ -1,0 +1,9 @@
+style]
+based_on_style = pep8
+column_limit = 100
+indent_width = 4
+# This is the valid knob for named assignments
+split_before_named_assigns = false
+# Best alternative for dictionaries in standard YAPF:
+each_dict_entry_on_separate_line = true
+force_multiline_dict = true

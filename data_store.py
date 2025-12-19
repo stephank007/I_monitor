@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Dict, List, Any
+
 from pymongo import MongoClient
 
 # ------------------------------------------------------------
@@ -67,19 +68,19 @@ def filter_rollups(tile_id: str) -> List[Dict[str, Any]]:
     if tile_id.startswith("overall_"):
         v = tile_id.split("_", 1)[1].upper()
         return [r for r in ROLLUPS if worst_overall(r) == v]
-
+    
     if tile_id.startswith("tech_"):
         v = tile_id.split("_", 1)[1].upper()
         return [r for r in ROLLUPS if (r.get("tech", {}).get("health") or "GREEN").upper() == v]
-
+    
     if tile_id.startswith("business_"):
         v = tile_id.split("_", 1)[1].upper()
         return [r for r in ROLLUPS if (r.get("business", {}).get("health") or "GREEN").upper() == v]
-
+    
     if tile_id.startswith("sla_"):
-        v = tile_id.split("_", 1)[1].upper()   # OK / AT_RISK / BREACH
+        v = tile_id.split("_", 1)[1].upper()  # OK / AT_RISK / BREACH
         return [r for r in ROLLUPS if (r.get("sla", {}).get("state") or "OK").upper() == v]
-
+    
     return ROLLUPS
 
 
@@ -101,104 +102,113 @@ def compute_counts() -> Dict[str, int]:
 # ------------------------------------------------------------
 def to_grouped_rows(flows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
-
+    
     for r in flows:
         sap_order = r.get("order", {}).get("sap_order", "UNKNOWN")
         cid = r.get("correlation_id", "")
         plant = r.get("sap_idoc", {}).get("plant", "")
         idoc = r.get("sap_idoc", {}).get("number", "")
-
+        
         # Per-section statuses
         tech = r.get("tech", {})
         biz = r.get("business", {})
         sla = r.get("sla", {})
-
+        
         tech_status = (tech.get("health") or "GREEN").upper()
         biz_status = (biz.get("health") or "GREEN").upper()
         sla_state = (sla.get("state") or "OK").upper()
         sla_status = sla_state_to_status(sla_state)
-
+        
         # Aggregate for FLOW / order
         overall = worst_status([tech_status, biz_status, sla_status])
-
+        
         # FLOW (aggregate)
-        rows.append({
-            "sap_order": sap_order,
-            "node_type": "FLOW",
-            "overall": overall,
-            "row_status": overall,          # <-- important
-            "order_overall": overall,       # will be overwritten later (but ok)
-            "plant": plant,
-            "idoc": idoc,
-            "key": "Summary",
-            "value": "",
-            "reason": "",
-            "checkpoint": "",
-            "sla_state": sla_state,
-            "correlation_id": cid,
-        })
-
+        rows.append(
+            {
+                "sap_order"     : sap_order,
+                "node_type"     : "FLOW",
+                "overall"       : overall,
+                "row_status"    : overall,  # <-- important
+                "order_overall" : overall,  # will be overwritten later (but ok)
+                "plant"         : plant,
+                "idoc"          : idoc,
+                "key"           : "Summary",
+                "value"         : "",
+                "reason"        : "",
+                "checkpoint"    : "",
+                "sla_state"     : sla_state,
+                "correlation_id": cid,
+            },
+        )
+        
         # TECH (own status)
-        rows.append({
-            "sap_order": sap_order,
-            "node_type": "TECH",
-            "overall": overall,
-            "row_status": tech_status,      # <-- important
-            "order_overall": overall,
-            "plant": plant,
-            "idoc": idoc,
-            "key": "Transport",
-            "value": f"{tech_status} / {tech.get('last_status','')}",
-            "reason": tech.get("reason_code", "") or "",
-            "checkpoint": tech.get("last_checkpoint", "") or "",
-            "sla_state": sla_state,
-            "correlation_id": cid,
-        })
-
+        rows.append(
+            {
+                "sap_order"     : sap_order,
+                "node_type"     : "TECH",
+                "overall"       : overall,
+                "row_status"    : tech_status,  # <-- important
+                "order_overall" : overall,
+                "plant"         : plant,
+                "idoc"          : idoc,
+                "key"           : "Transport",
+                "value"         : f"{tech_status} / {tech.get('last_status', '')}",
+                "reason"        : tech.get("reason_code", "") or "",
+                "checkpoint"    : tech.get("last_checkpoint", "") or "",
+                "sla_state"     : sla_state,
+                "correlation_id": cid,
+            },
+        )
+        
         # BUSINESS (own status)
-        rows.append({
-            "sap_order": sap_order,
-            "node_type": "BUSINESS",
-            "overall": overall,
-            "row_status": biz_status,       # <-- important
-            "order_overall": overall,
-            "plant": plant,
-            "idoc": idoc,
-            "key": "Business",
-            "value": f"{biz_status} / {biz.get('status','')}",
-            "reason": biz.get("reason_code", "") or "",
-            "checkpoint": "",
-            "sla_state": sla_state,
-            "correlation_id": cid,
-        })
-
+        rows.append(
+            {
+                "sap_order"     : sap_order,
+                "node_type"     : "BUSINESS",
+                "overall"       : overall,
+                "row_status"    : biz_status,  # <-- important
+                "order_overall" : overall,
+                "plant"         : plant,
+                "idoc"          : idoc,
+                "key"           : "Business",
+                "value"         : f"{biz_status} / {biz.get('status', '')}",
+                "reason"        : biz.get("reason_code", "") or "",
+                "checkpoint"    : "",
+                "sla_state"     : sla_state,
+                "correlation_id": cid,
+            },
+        )
+        
         # SLA (own status derived from SLA state)
-        rows.append({
-            "sap_order": sap_order,
-            "node_type": "SLA",
-            "overall": overall,
-            "row_status": sla_status,       # <-- important (AMBER when AT_RISK)
-            "order_overall": overall,
-            "plant": plant,
-            "idoc": idoc,
-            "key": "SLA",
-            "value": f"יעד: {sla.get('response_due_seconds','')}s / בפועל: {sla.get('actual_response_seconds','')}s",
-            "reason": sla_state,
-            "checkpoint": "",
-            "sla_state": sla_state,
-            "correlation_id": cid,
-        })
-
+        rows.append(
+            {
+                "sap_order"     : sap_order,
+                "node_type"     : "SLA",
+                "overall"       : overall,
+                "row_status"    : sla_status,  # <-- important (AMBER when AT_RISK)
+                "order_overall" : overall,
+                "plant"         : plant,
+                "idoc"          : idoc,
+                "key"           : "SLA",
+                "value"         : f"יעד: {sla.get('response_due_seconds', '')}s / בפועל: {sla.get('actual_response_seconds', '')}s",
+                "reason"        : sla_state,
+                "checkpoint"    : "",
+                "sla_state"     : sla_state,
+                "correlation_id": cid,
+            },
+        )
+    
     # Ensure order_overall is consistent per sap_order (in case of multiple flows per order)
     per_order: Dict[str, str] = {}
     for row in rows:
         so = row.get("sap_order", "UNKNOWN")
         per_order[so] = worst_status([per_order.get(so, "GREEN"), row.get("row_status", "GREEN")])
-
+    
     for row in rows:
         row["order_overall"] = per_order.get(row.get("sap_order", "UNKNOWN"), "GREEN")
-
+    
     return rows
+
 
 # Fast lookup for detail page
 ROLLUP_BY_CID = {r.get("correlation_id"): r for r in ROLLUPS if r.get("correlation_id")}

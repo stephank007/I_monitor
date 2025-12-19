@@ -1,23 +1,25 @@
 from __future__ import annotations
 
-from typing import Dict, Any
 import dash
 from dash import html
 import dash_bootstrap_components as dbc
-
 from data_store import ROLLUP_BY_CID, worst_overall
 
 dash.register_page(__name__, path_template="/detail/<correlation_id>", name="פרטי תהליך")
 
 
 def badge_for(overall: str) -> dbc.Badge:
-    m = {"GREEN": "success", "AMBER": "warning", "RED": "danger"}
+    m = {
+        "GREEN": "success",
+        "AMBER": "warning",
+        "RED"  : "danger",
+    }
     return dbc.Badge(overall, color=m.get(overall, "secondary"), className="ms-2")
 
 
 def layout(correlation_id: str = ""):
     r = ROLLUP_BY_CID.get(correlation_id)
-
+    
     if not r:
         return dbc.Container(
             [
@@ -27,7 +29,7 @@ def layout(correlation_id: str = ""):
                             "← חזרה לדשבורד",
                             href="/",
                             color="secondary",
-                            outline=True
+                            outline=True,
                         ),
                         width=12,
                     ),
@@ -38,31 +40,29 @@ def layout(correlation_id: str = ""):
             fluid=True,
             style={"direction": "rtl"},
         )
-
+    
     overall = worst_overall(r)
     idoc = r.get("sap_idoc", {}).get("number", "לא ידוע")
     sap_order = r.get("order", {}).get("sap_order", "לא ידוע")
-
+    
     tech = r.get("tech", {})
     biz = r.get("business", {})
     sla = r.get("sla", {})
-
+    
     failed_phase = (
         tech.get("last_checkpoint")
-        if tech.get("health") == "RED"
-        else "בדיקה עסקית"
-        if biz.get("health") in ("AMBER", "RED")
-        else "חריגת SLA"
+        if tech.get("health") == "RED" else "בדיקה עסקית"
+        if biz.get("health") in ("AMBER", "RED") else "חריגת SLA"
         if sla.get("state") == "BREACH"
         else "תקין"
     )
-
+    
     short_desc = (
         "התהליך נכשל ונדרש טיפול בהתאם לסיבה המפורטת."
         if overall != "GREEN"
         else "לא זוהתה תקלה בתהליך."
     )
-
+    
     failure_reason_title = (
         f"תקלה טכנית: {tech.get('reason_code')}"
         if tech.get("reason_code")
@@ -72,7 +72,7 @@ def layout(correlation_id: str = ""):
         if sla.get("state") == "BREACH"
         else "לא זוהתה סיבת כשל"
     )
-
+    
     return dbc.Container(
         [
             dbc.Row(
@@ -87,9 +87,9 @@ def layout(correlation_id: str = ""):
             dbc.Row(
                 dbc.Col(
                     html.Span("פרטי תהליך — תהליך כושל", style={"fontSize": "28px", "fontWeight": "700"}),
-                )
+                ),
             ),
-
+            
             html.Div(
                 [
                     html.Span(f"מספר iDoc: {idoc}  ·  "),
@@ -99,18 +99,18 @@ def layout(correlation_id: str = ""):
                 ],
                 className="text-muted mt-2",
             ),
-
+            
             dbc.Card(
                 dbc.CardBody(
                     [
                         html.H5("סיכום התקלה", className="mb-3"),
                         html.Div([html.Span("שלב כשל: ", className="fw-bold"), failed_phase]),
                         html.Div([html.Span("תיאור קצר: ", className="fw-bold"), short_desc], className="mt-2"),
-                    ]
+                    ],
                 ),
                 className="mt-3",
             ),
-
+            
             dbc.Row(
                 [
                     dbc.Col(
@@ -129,8 +129,8 @@ def layout(correlation_id: str = ""):
                                         className="text-muted",
                                     ),
                                     html.Div("העיבוד נעצר בשלב הכשל במידה וקיים.", className="text-muted small"),
-                                ]
-                            )
+                                ],
+                            ),
                         ),
                         md=7,
                         class_name="mt-3",
@@ -159,14 +159,14 @@ def layout(correlation_id: str = ""):
                                                 f"• SLA: {sla.get('state')} (יעד={sla.get('response_due_seconds')} שניות, בפועל={sla.get('actual_response_seconds')} שניות)",
                                                 className="text-muted",
                                             ),
-                                        ]
+                                        ],
                                     ),
                                     html.Div(
                                         "המלצה: בדוק נתוני מאסטר, מלאי, או תעבורה (PO / Firewall / WMS).",
                                         className="text-muted small mt-2",
                                     ),
-                                ]
-                            )
+                                ],
+                            ),
                         ),
                         md=5,
                         class_name="mt-3",
@@ -174,7 +174,7 @@ def layout(correlation_id: str = ""):
                 ],
                 className="g-3",
             ),
-
+            
             dbc.Row(
                 [
                     dbc.Col(
@@ -191,8 +191,8 @@ def layout(correlation_id: str = ""):
                                         ],
                                         className="text-muted",
                                     ),
-                                ]
-                            )
+                                ],
+                            ),
                         ),
                         md=7,
                         class_name="mt-3",
@@ -202,7 +202,9 @@ def layout(correlation_id: str = ""):
                             dbc.CardBody(
                                 [
                                     html.H5("מידע מתקדם / לוגים", className="mb-3"),
-                                    html.Div("אזור להצגת לוגים, שגיאות סכימה, SPLUNK ו-Diagnostics.", className="text-muted"),
+                                    html.Div(
+                                        "אזור להצגת לוגים, שגיאות סכימה, SPLUNK ו-Diagnostics.", className="text-muted",
+                                    ),
                                     html.Pre(
                                         f"correlation_id: {correlation_id}\n"
                                         f"checkpoint אחרון: {tech.get('last_checkpoint')}\n"
@@ -212,8 +214,8 @@ def layout(correlation_id: str = ""):
                                         className="mt-2 text-muted",
                                         style={"whiteSpace": "pre-wrap", "fontSize": "12px"},
                                     ),
-                                ]
-                            )
+                                ],
+                            ),
                         ),
                         md=5,
                         class_name="mt-3",
@@ -221,7 +223,7 @@ def layout(correlation_id: str = ""):
                 ],
                 className="g-3",
             ),
-
+            
             dbc.Card(
                 dbc.CardBody(
                     [
@@ -240,14 +242,14 @@ def layout(correlation_id: str = ""):
                                                 "(יעודכן ל: ״בשליחה״, ״תוקן״, ״נמחק״ וכו׳)",
                                                 className="text-muted small",
                                             ),
-                                        ]
+                                        ],
                                     ),
                                     md=6,
                                 ),
                             ],
                             className="g-2",
                         ),
-                    ]
+                    ],
                 ),
                 className="mt-3 mb-4",
             ),
